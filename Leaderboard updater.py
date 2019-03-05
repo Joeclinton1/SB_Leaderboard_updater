@@ -33,7 +33,7 @@ def getService():
 def updateLeaderboard(rows, username,points):
     if [username] in rows:
         print("update")
-        cellPos = points_tab + '!C'+str(rows.index([username]))
+        cellPos = points_tab + '!C'+str(rows.index([username])+1)
         sheet.values().update(
             spreadsheetId=spreadsheet_id,
             range=cellPos,
@@ -79,7 +79,7 @@ def main():
                     mData = (chatItem['authorName']['simpleText'],chatItem['message']['simpleText']) #mData = message data
 
                     if mData[0] == 'Streamlabs':
-                        pData = (mData[1].split(',')[0][1:],mData[1].split()[-2]) #pData = points data
+                        pData = (mData[1].split(',')[0][1:].split()[:2],mData[1].split()[-2]) #pData = points data
                         updateLeaderboard(rows,pData[0],pData[1])
                         #print("User: " + pData[0] +" has " + pData[1] + " points.")
                 except Exception as e:

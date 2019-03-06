@@ -1,4 +1,3 @@
-from __future__ import print_function
 import urllib.request
 import json
 from urllib.request import Request
@@ -8,6 +7,9 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request as auth_request
 import time
+import itertools
+
+
 def getService():
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
@@ -30,36 +32,61 @@ def getService():
 
     return build('sheets', 'v4', credentials=creds)
 
-def updateLeaderboard(rows, username,points):
-    if [username] in rows:
-        print("update")
-        cellPos = points_tab + '!C'+str(rows.index([username])+1)
-        sheet.values().update(
-            spreadsheetId=spreadsheet_id,
-            range=cellPos,
-            valueInputOption='USER_ENTERED',
-            body={'values': [[int(points)]]}
-        ).execute()
-    else:
-        print("append")
-        sheet.values().append(
-            spreadsheetId=spreadsheet_id,
-            range=points_tab+'!B:B',
-            valueInputOption='USER_ENTERED',
-            insertDataOption='OVERWRITE',
-            body={'values': [["",username,int(points)]]}
-        ).execute()
+
+def updateLeaderboard(rows, pData):
+    flatRows = list(itertools.chain.from_iterable(rows))
+    oldUsers = set(flatRows) & set(pData.keys())
+    newUsers = set(pData.keys()) - set(flatRows)
+    data = []
+    for username in oldUsers:
+        data.append(
+            {
+                'range': points_tab + '!C' + str(rows.index([username]) + 1),
+                'values': [[pData[username]]]
+            }
+        )
+    for i, username in enumerate(newUsers):
+        r = len(rows) + i + 1
+        data.append(
+            {
+                'range': points_tab + '!A' + str(r),
+                'values': [[
+                    "=ROW()-2",
+                    username,
+                    pData[username],
+                    "=(C%s - C%s) * 5" % (str(r), str(r + 1)),
+                    "=D%s / 60" % str(r),
+                    "=(1000 - C%s) * 5" % str(r),
+                    "=C%s * 5" % str(r),
+                    "=G%s / 60" % str(r),
+                    "=H%s / 24" % str(r),
+                    "= C%s - C%s" % (str(r - 1), str(r)),
+                    "=C$3 - C%s" % str(r),
+                    "= G%s / G$2" % str(r)
+
+                ]]
+            }
+        )
+    sheet.values().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={
+            'valueInputOption': 'USER_ENTERED',
+            'data': data
+        }
+    ).execute()
 
 
 api_url = "https://www.youtube.com/live_chat/get_live_chat?continuation=0ofMyAOOARogQ2c4S0RRb0xiVk5SU1ZoZlJ6TlVhbFVnQVElM0QlM0Qo-dPN3Z3p4AIwADgAQAJKLggAEAAYACAAKg5zdGF0aWNjaGVja3N1bToFGMDDkwdAAEoAUJXGm8Wd6eACWANQtZaF3p3p4AJY0sDKyJvp4AJoBIIBBAgEEACIAQCaAQIIAKAB1Let3p3p4AI%253D&pbj=1&last=1"
-headers = {"authority": 'www.youtube.com','method': 'GET','scheme': 'https','accept': '*/*', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'}
+headers = {"authority": 'www.youtube.com', 'method': 'GET', 'scheme': 'https', 'accept': '*/*',
+           'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36'}
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-spreadsheet_id = '1cBMj7yhF7MQz9VSJME8eAt4TWbZsa2WDX3B9eCQiTt8' #Change this to the id of the spreadsheet found at the end of the url.
+spreadsheet_id = '11bb98ufB7o8nFqteEaoLWl09Y_lW1tKpdagYOr2zJUU'  # Change this to the id of the spreadsheet found at the end of the url.
 q = Request(api_url, headers=headers)
 oldMessage = ""
 service = getService()
 sheet = service.spreadsheets()
-points_tab = "Points leaderboard" #name of tab with points leaderboard
+points_tab = "Points leaderboard"  # name of tab with points leaderboard
+
 
 def main():
     while 1:
@@ -69,22 +96,26 @@ def main():
 
         rows = service.spreadsheets().values().get(
             spreadsheetId=spreadsheet_id,
-            range=points_tab+'!B:B'
+            range=points_tab + '!B:B'
         ).execute().get('values')
-        print(rows)
-
+        pData = {}
         for action in actions:
-                try:
-                    chatItem = action['addChatItemAction']['item']['liveChatTextMessageRenderer']
-                    mData = (chatItem['authorName']['simpleText'],chatItem['message']['simpleText']) #mData = message data
+            try:
+                chatItem = action['addChatItemAction']['item']['liveChatTextMessageRenderer']
+                mData = (
+                    chatItem['authorName']['simpleText'], chatItem['message']['simpleText'])  # mData = message data
 
-                    if mData[0] == 'Streamlabs':
-                        pData = (" ".join(mData[1].split(',')[0][1:].split()[:2]),mData[1].split()[-2]) #pData = points data
-                        updateLeaderboard(rows,pData[0],pData[1])
-                        #print("User: " + pData[0] +" has " + pData[1] + " points.")
-                except Exception as e:
-                    print(e)
+                if mData[0] == 'Streamlabs':
+                    pData[" ".join(mData[1].split(',')[0][1:].split()[:2])] = mData[1].split()[
+                        -2]  # pData = points data
+                    print("User: %s has %s points." % (
+                        " ".join(mData[1].split(',')[0][1:].split()[:2]), mData[1].split()[-2]))
+            except:
+                pass
+        print("")
+        updateLeaderboard(rows, pData)
         time.sleep(5)
+
 
 if __name__ == '__main__':
     main()

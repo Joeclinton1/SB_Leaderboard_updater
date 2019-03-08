@@ -105,7 +105,7 @@ def main():
                 mData = (
                     chatItem['authorName']['simpleText'], chatItem['message']['simpleText'])  # mData = message data
 
-                if mData[0] == 'Jay Burton' and mData[1].split()[-2]=="points":
+                if mData[0] == 'Jay Burton' and mData[1].split()[-1]=="points":
                     username = " ".join(mData[1].split('You')[0][1:].split()[:2])
                     points = mData[1].split()[-2]
                     pData[username] = points  # pData = points data
